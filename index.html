@@ -27,6 +27,7 @@
             width: 100%;
             display: flex;
             flex-direction: column;
+            margin-bottom: 60px; /* フッターの高さに応じて調整 */
         }
 
         h1 {
@@ -59,6 +60,12 @@
             display: flex;
             align-items: center;
             margin-bottom: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .input-group input[type="password"] {
+            flex: 1;
+            margin-right: 10px;
         }
 
         input[type="password"], input[type="text"] {
@@ -218,17 +225,102 @@
         canvas {
             width: 100% !important;
         }
+
+        footer {
+            background-color: #2c3e50;
+            color: #ecf0f1;
+            padding: 1.5rem 0;
+            text-align: center;
+            position: fixed;
+            bottom: 0;
+            width: 100%;
+            box-shadow: 0 -4px 10px rgba(0,0,0,0.1);
+        }
+
+        .footer-content {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 2rem;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+
+        footer a {
+            color: #3498db;
+            text-decoration: none;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            padding: 8px 15px;
+            border-radius: 5px;
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+
+        footer a:hover {
+            color: #ffffff;
+            background-color: rgba(255, 255, 255, 0.2);
+            transform: translateY(-2px);
+        }
+
+
+        .reset-button {
+            background-color: #e74c3c;
+            color: white;
+            margin-left: 15px; /* 保存ボタンとの間隔を増やす */
+        }
+
+        .reset-button:hover {
+            background-color: #c0392b;
+        }
+
+        .reset-button:disabled {
+            background-color: #f1c9c5;
+        }
+
+        @media (max-width: 600px) {
+            .input-group {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            .input-group input[type="password"],
+            .input-group button {
+                width: 100%;
+                margin: 5px 0;
+            }
+            
+            .reset-button {
+                margin-left: 0; /* モバイル表示時はマージンをリセット */
+                margin-top: 10px; /* 代わりに上部にマージンを追加 */
+            }
+        }
+
+        footer a::before {
+            font-family: "Font Awesome 6 Free";
+            font-weight: 900;
+            margin-right: 8px;
+        }
+
+
+        footer a:nth-child(3)::before { content: "\f128"; } /* Question mark icon */
+        footer a:nth-child(4)::before { content: "\f0f4"; } /* Coffee icon */
+
+
+
     </style>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
 </head>
 <body>
     <div class="container">
-        <h1>音声録音・文字起こしアプリ</h1>
+        <h1>デスクトップ/マイク音声録音・Whisper文字起こしアプリ</h1>
         <div class="main-content">
             <div class="left-section">
                 <div class="input-group">
                     <label for="apiKey">APIキー:</label>
                     <input type="password" id="apiKey" placeholder="Whisper APIキー">
                     <button id="saveApiKey">保存</button>
+                    <button id="resetApiKey" class="reset-button">リセット</button>
                 </div>
                 <div class="button-group">
                     <button id="startRecording">録音開始</button>
@@ -262,6 +354,14 @@
             </div>
         </div>
     </div>
+    <footer>
+        <div class="footer-content">
+            <a href="https://x.com/rabbuttz_vr" target="_blank" rel="noopener noreferrer"><i class="fa-brands fa-x-twitter"></i> X (Twitter)</a>
+            <a href="https://github.com/rabbuttz/mojiokosi-browser?tab=readme-ov-file" target="_blank" rel="noopener noreferrer"><i class="fab fa-github"></i> GitHub</a>
+            <a href="usage.html" target="_blank" rel="noopener noreferrer">使い方</a>
+            <a href="https://ko-fi.com/rabbuttz" target="_blank" rel="noopener noreferrer">☕Ko-fi</a>
+        </div>
+    </footer>
     <script src="script.js"></script>
 </body>
 </html>

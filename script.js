@@ -23,6 +23,7 @@ const copyToClipboardButton = document.getElementById('copyToClipboard');
 const downloadAudioButton = document.getElementById('downloadAudio');
 const timeDisplay = document.getElementById('time-display');
 const historyDiv = document.getElementById('history');
+const resetApiKeyButton = document.getElementById('resetApiKey');
 
 let trimmedAudioBlob = null; // トリミング後の音声データを保存する変数
 let fullAudioBlob = null; // 録音されたフル音声データを保存する変数
@@ -32,6 +33,35 @@ window.addEventListener('load', () => {
     switchFavicon('default');
   });
 
+  resetApiKeyButton.addEventListener('click', () => {
+    if (confirm('APIキーをリセットしてもよろしいですか？')) {
+        localStorage.removeItem('whisperApiKey');
+        apiKeyInput.value = '';
+        statusDiv.textContent = 'APIキーがリセットされました';
+        resetApiKeyButton.disabled = true;
+        setTimeout(() => {
+            resetApiKeyButton.disabled = false;
+        }, 3000); // 3秒後にボタンを再度有効化
+    }
+});
+
+// 既存の saveApiKey イベントリスナーを修正
+saveApiKeyButton.addEventListener('click', () => {
+    const apiKey = apiKeyInput.value;
+    if (apiKey) {
+        localStorage.setItem('whisperApiKey', apiKey);
+        statusDiv.textContent = 'APIキーが保存されました';
+        resetApiKeyButton.disabled = false;
+    } else {
+        statusDiv.textContent = 'APIキーを入力してください';
+    }
+});
+
+// ページ読み込み時にAPIキーの存在をチェックし、リセットボタンの状態を設定
+window.addEventListener('load', () => {
+    const savedApiKey = localStorage.getItem('whisperApiKey');
+    resetApiKeyButton.disabled = !savedApiKey;
+});
 // APIキーの保存
 saveApiKeyButton.addEventListener('click', () => {
     const apiKey = apiKeyInput.value;
