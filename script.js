@@ -4,19 +4,28 @@ let audioContext;
 let analyser;
 let visualizerCanvas;
 let visualizerCanvasCtx;
+let recordingStartTime;
+let recordingInterval;
+let isPaused = false;
+let promptValue = '';
 
 const apiKeyInput = document.getElementById('apiKey');
 const saveApiKeyButton = document.getElementById('saveApiKey');
+const promptInput = document.getElementById('prompt');
 const startRecordingButton = document.getElementById('startRecording');
+const toggleRecordingButton = document.getElementById('toggleRecording');
 const stopRecordingButton = document.getElementById('stopRecording');
 const sendToApiButton = document.getElementById('sendToApi');
 const statusDiv = document.getElementById('status');
 const transcriptionDiv = document.getElementById('transcription');
 const saveToFileButton = document.getElementById('saveToFile');
 const copyToClipboardButton = document.getElementById('copyToClipboard');
-const downloadAudioButton = document.getElementById('downloadAudio'); // 追加
+const downloadAudioButton = document.getElementById('downloadAudio');
+const timeDisplay = document.getElementById('time-display');
+const historyDiv = document.getElementById('history');
 
 let trimmedAudioBlob = null; // トリミング後の音声データを保存する変数
+let fullAudioBlob = null; // 録音されたフル音声データを保存する変数
 
 // APIキーの保存
 saveApiKeyButton.addEventListener('click', () => {
@@ -30,18 +39,33 @@ saveApiKeyButton.addEventListener('click', () => {
     }
 });
 
-// 保存されたAPIキーの読み込み
+// プロンプトの自動保存
+promptInput.addEventListener('input', () => {
+    promptValue = promptInput.value;
+    localStorage.setItem('transcriptionPrompt', promptValue);
+});
+
+// 保存されたAPIキーとプロンプトの読み込み
 const savedApiKey = localStorage.getItem('whisperApiKey');
 if (savedApiKey) {
     apiKeyInput.value = savedApiKey;
 }
 
+const savedPrompt = localStorage.getItem('transcriptionPrompt');
+if (savedPrompt) {
+    promptInput.value = savedPrompt;
+    promptValue = savedPrompt;
+}
+
 startRecordingButton.addEventListener('click', startRecording);
+toggleRecordingButton.addEventListener('click', toggleRecording);
 stopRecordingButton.addEventListener('click', stopRecording);
 sendToApiButton.addEventListener('click', sendToApi);
 saveToFileButton.addEventListener('click', saveToFile);
 copyToClipboardButton.addEventListener('click', copyToClipboard);
-downloadAudioButton.addEventListener('click', downloadAudio); // 追加
+downloadAudioButton.addEventListener('click', downloadAudio);
+
+window.addEventListener('load', loadHistory);
 
 // 音声ビジュアライザーの設定
 visualizerCanvas = document.getElementById('audioVisualizer');
@@ -56,6 +80,11 @@ window.addEventListener('resize', resizeCanvas);
 resizeCanvas();
 
 function drawVisualizer() {
+    if (isPaused) {
+        requestAnimationFrame(drawVisualizer);
+        return;
+    }
+
     requestAnimationFrame(drawVisualizer);
 
     const bufferLength = analyser.frequencyBinCount;
@@ -66,7 +95,7 @@ function drawVisualizer() {
     visualizerCanvasCtx.fillRect(0, 0, visualizerCanvas.width, visualizerCanvas.height);
 
     visualizerCanvasCtx.lineWidth = 2;
-    visualizerCanvasCtx.strokeStyle = 'rgb(0, 0, 0)';
+    visualizerCanvasCtx.strokeStyle = 'rgb(255, 0, 0)'; // 録音中は赤色
 
     visualizerCanvasCtx.beginPath();
 
@@ -90,8 +119,22 @@ function drawVisualizer() {
     visualizerCanvasCtx.stroke();
 }
 
+function updateRecordingTime() {
+    const now = new Date();
+    const diff = new Date(now - recordingStartTime);
+    const minutes = diff.getUTCMinutes().toString().padStart(2, '0');
+    const seconds = diff.getUTCSeconds().toString().padStart(2, '0');
+    const timeString = `${minutes}:${seconds}`;
+    timeDisplay.textContent = timeString;
+    document.title = `録音中 ${timeString}`;
+}
+
 async function startRecording() {
     audioChunks = [];
+    recordingStartTime = new Date();
+    updateRecordingTime();
+    recordingInterval = setInterval(updateRecordingTime, 1000);
+
     try {
         console.log("録音開始処理を開始します...");
         statusDiv.textContent = "録音の準備中...";
@@ -136,11 +179,16 @@ async function startRecording() {
             console.log("録音が停止しました");
             desktopStream.getTracks().forEach(track => track.stop());
             micStream.getTracks().forEach(track => track.stop());
+            clearInterval(recordingInterval);
+            document.title = '音声録音・文字起こしアプリ';
+            fullAudioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+            downloadAudioButton.disabled = false; // 録音停止後に音声ダウンロードボタンを有効にする
         };
 
         console.log("録音を開始します...");
         mediaRecorder.start(1000); // 1秒ごとにデータを取得
         startRecordingButton.disabled = true;
+        toggleRecordingButton.disabled = false;
         stopRecordingButton.disabled = false;
         sendToApiButton.disabled = true;
         statusDiv.textContent = '録音中...';
@@ -149,8 +197,26 @@ async function startRecording() {
         console.error('録音の開始に失敗しました:', error);
         statusDiv.textContent = `録音の開始に失敗しました: ${error.message}`;
         startRecordingButton.disabled = false;
+        toggleRecordingButton.disabled = true;
         stopRecordingButton.disabled = true;
         sendToApiButton.disabled = true;
+    }
+}
+
+function toggleRecording() {
+    if (mediaRecorder.state === 'recording') {
+        mediaRecorder.pause();
+        isPaused = true;
+        toggleRecordingButton.textContent = '再開';
+        statusDiv.textContent = '録音一時停止中...';
+        clearInterval(recordingInterval);
+    } else if (mediaRecorder.state === 'paused') {
+        mediaRecorder.resume();
+        isPaused = false;
+        toggleRecordingButton.textContent = '一時停止';
+        statusDiv.textContent = '録音再開中...';
+        recordingStartTime = new Date(new Date() - (new Date() - recordingStartTime));
+        recordingInterval = setInterval(updateRecordingTime, 1000);
     }
 }
 
@@ -158,6 +224,7 @@ function stopRecording() {
     if (mediaRecorder && mediaRecorder.state !== 'inactive') {
         mediaRecorder.stop();
         startRecordingButton.disabled = false;
+        toggleRecordingButton.disabled = true;
         stopRecordingButton.disabled = true;
         sendToApiButton.disabled = false;
         statusDiv.textContent = '録音が完了しました。「文字起こし開始」ボタンを押して文字起こしを開始できます。';
@@ -168,12 +235,10 @@ async function sendToApi() {
     try {
         sendToApiButton.disabled = true;
         statusDiv.textContent = '文字起こしを開始します... 文字起こし中はタブを閉じないでください。';
-        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-        console.log("録音されたオーディオデータのサイズ:", audioBlob.size);
-        if (audioBlob.size === 0) {
+        if (!fullAudioBlob) {
             throw new Error('録音されたオーディオがありません');
         }
-        await processAudio(audioBlob);
+        await processAudio(fullAudioBlob);
     } catch (error) {
         console.error('文字起こしに失敗しました:', error);
         statusDiv.textContent = '文字起こしに失敗しました: ' + error.message;
@@ -185,7 +250,6 @@ async function sendToApi() {
 async function processAudio(audioBlob) {
     try {
         trimmedAudioBlob = await trimSilence(audioBlob); // トリミング後の音声データを保存
-        downloadAudioButton.disabled = false; // トリミング後の音声が利用可能になったので、ダウンロードボタンを有効にする
         const chunks = await splitAudioIntoChunks(trimmedAudioBlob);
         let fullTranscription = '';
 
@@ -199,6 +263,7 @@ async function processAudio(audioBlob) {
         statusDiv.textContent = '文字起こしが完了しました';
         saveToFileButton.disabled = false;
         copyToClipboardButton.disabled = false;
+        saveTranscriptionHistory(fullTranscription);
     } catch (error) {
         console.error('文字起こしに失敗しました:', error);
         statusDiv.textContent = '文字起こしに失敗しました: ' + error.message;
@@ -391,6 +456,9 @@ async function transcribeAudio(audioBlob) {
     const formData = new FormData();
     formData.append('file', audioBlob, 'audio.wav');
     formData.append('model', 'whisper-1');
+    if (promptValue) {
+        formData.append('prompt', promptValue);
+    }
 
     const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
         method: 'POST',
@@ -429,13 +497,84 @@ function copyToClipboard() {
     });
 }
 
-function downloadAudio() { // 追加
-    if (trimmedAudioBlob) {
-        const url = URL.createObjectURL(trimmedAudioBlob);
+function downloadAudio() {
+    if (fullAudioBlob) {
+        const url = URL.createObjectURL(fullAudioBlob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = 'trimmed_audio.wav';
+        a.download = 'full_audio.webm';
         a.click();
         URL.revokeObjectURL(url);
     }
+}
+
+
+function saveTranscriptionHistory(transcription) {
+    const now = new Date();
+    const timestamp = now.toISOString();
+    historyData.unshift({ timestamp, transcription }); // 新しい項目を配列の先頭に追加
+    localStorage.setItem('transcriptionHistory', JSON.stringify(historyData));
+    loadHistory();
+}
+
+function loadHistory() {
+    historyData = JSON.parse(localStorage.getItem('transcriptionHistory')) || [];
+    historyDiv.innerHTML = '';
+    
+    historyData.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+    historyData.forEach((item, index) => {
+        const div = document.createElement('div');
+        div.classList.add('history-item');
+        div.innerHTML = `
+            <div class="history-item-header">
+                <span class="history-item-timestamp">${formatTimestamp(item.timestamp)}</span>
+                <div class="history-item-buttons">
+                    <button class="small-button" onclick="downloadHistoryItem(${index})">保存</button>
+                    <button class="small-button delete-button" onclick="deleteHistoryItem(${index})">削除</button>
+                </div>
+            </div>
+            <div class="history-item-content">${item.transcription.substring(0, 100)}${item.transcription.length > 100 ? '...' : ''}</div>
+        `;
+        historyDiv.appendChild(div);
+    });
+}
+
+function formatTimestamp(isoString) {
+    const date = new Date(isoString);
+    return date.toLocaleString('ja-JP', { 
+        year: 'numeric', 
+        month: '2-digit', 
+        day: '2-digit', 
+        hour: '2-digit', 
+        minute: '2-digit' 
+    });
+}
+
+function downloadHistoryItem(index) {
+    const item = historyData[index];
+    const blob = new Blob([item.transcription], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `transcription_${formatTimestamp(item.timestamp)}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+}
+
+function deleteHistoryItem(index) {
+    historyData.splice(index, 1);
+    localStorage.setItem('transcriptionHistory', JSON.stringify(historyData));
+    loadHistory(); // 履歴を再読み込み
+}
+
+function formatTimestamp(isoString) {
+    const date = new Date(isoString);
+    return date.toLocaleString('ja-JP', { 
+        year: 'numeric', 
+        month: '2-digit', 
+        day: '2-digit', 
+        hour: '2-digit', 
+        minute: '2-digit' 
+    });
 }
