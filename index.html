@@ -4,7 +4,7 @@
     <link id="favicon" rel="icon" type="image/svg+xml" href="img/favicon-default.svg">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>音声録音・文字起こしアプリ</title>
+    <title>WhisperLog</title>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;700&display=swap" rel="stylesheet">
     <style>
         body {
@@ -33,12 +33,19 @@
         h1 {
             color: #2c3e50;
             text-align: center;
+            margin-bottom: 0.5rem;
+        }
+
+        h2 {
+            color: #2c3e50;
+            text-align: center;
             margin-bottom: 2rem;
         }
 
         .main-content {
             display: flex;
             justify-content: space-between;
+            flex-wrap: wrap; /* 追加: レスポンシブ対応のためにフレックスボックスをラップ */
         }
 
         .left-section {
@@ -54,6 +61,17 @@
 
         #history {
             padding-right: 10px;
+            position: absolute;
+            right: 0;
+            top: 0;
+            bottom: 0;
+            width: 300px;
+            max-height: 100%;
+            overflow-y: auto;
+            background-color: #fff;
+            border-left: 1px solid #ddd;
+            padding: 1rem;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
         }
 
         .input-group {
@@ -139,11 +157,13 @@
             display: flex;
             justify-content: space-between;
             align-items: flex-start;
+            flex-wrap: wrap; /* 追加: レスポンシブ対応のためにフレックスボックスをラップ */
         }
 
         #transcription-container {
             flex: 1;
             margin-right: 20px;
+            min-width: 300px; /* 追加: レスポンシブ対応のために最小幅を設定 */
         }
 
         #transcription {
@@ -159,7 +179,7 @@
 
         #transcription-buttons {
             display: flex;
-            justify-content: flex-end;
+            justify-content: space-between;
             margin-top: 10px;
         }
 
@@ -171,6 +191,7 @@
 
         #prompt-box {
             width: 300px;
+            min-width: 300px; /* 追加: レスポンシブ対応のために最小幅を設定 */
         }
 
         #prompt {
@@ -263,7 +284,6 @@
             transform: translateY(-2px);
         }
 
-
         .reset-button {
             background-color: #e74c3c;
             color: white;
@@ -283,13 +303,13 @@
                 flex-direction: column;
                 align-items: stretch;
             }
-            
+
             .input-group input[type="password"],
             .input-group button {
                 width: 100%;
                 margin: 5px 0;
             }
-            
+
             .reset-button {
                 margin-left: 0; /* モバイル表示時はマージンをリセット */
                 margin-top: 10px; /* 代わりに上部にマージンを追加 */
@@ -302,18 +322,40 @@
             margin-right: 8px;
         }
 
-
         footer a:nth-child(3)::before { content: "\f128"; } /* Question mark icon */
         footer a:nth-child(4)::before { content: "\f0f4"; } /* Coffee icon */
 
+        #transcription-box {
+            position: relative;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 10px;
+            margin-top: 20px;
+        }
 
+        #minutes-box {
+            position: relative;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 10px;
+            margin-top: 20px;
+        }
 
+        #transcription-buttons button {
+            margin-right: 5px;
+        }
+
+        #sendToApi, #generateMinutes {
+            display: block;
+            margin: 0 auto;
+        }
     </style>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2">
 </head>
 <body>
     <div class="container">
-        <h1>デスクトップ/マイク音声録音・Whisper文字起こしアプリ</h1>
+        <h1>WhisperLog</h1>
+        <h2>デスクトップ/マイク音声録音・WhisperAPI文字起こし・GPT-4o議事録生成アプリ</h2>
         <div class="main-content">
             <div class="left-section">
                 <div class="input-group">
@@ -326,32 +368,44 @@
                     <button id="startRecording">録音開始</button>
                     <button id="toggleRecording" disabled>一時停止</button>
                     <button id="stopRecording" disabled>録音停止</button>
-                    <button id="sendToApi" disabled>文字起こし開始</button>
                 </div>
                 <div id="visualizer">
                     <canvas id="audioVisualizer"></canvas>
                     <div id="time-display">00:00</div>
                 </div>
                 <div id="status"></div>
+                <div class="transcription-container">
+                    <div id="transcription-box">
+                        <h3>文字起こし</h3>
+                        <div id="transcription"></div>
+                        <div id="transcription-buttons">
+                            <button id="sendToApi" disabled>文字起こし開始</button>
+                            <div>
+                                <button id="saveToFile" disabled class="small-button">保存</button>
+                                <button id="copyToClipboard" disabled class="small-button">コピー</button>
+                                <button id="downloadAudio" disabled class="small-button">音声ダウンロード</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="minutes-box">
+                        <h3>議事録</h3>
+                        <div id="minutes"></div>
+                        <button id="generateMinutes" disabled>議事録を生成</button>
+                    </div>
+                </div>
             </div>
             <div class="right-section">
-                <h2>履歴</h2>
-                <div id="history"></div>
+                <div id="prompt-box">
+                    <label for="whisperPrompt">Whisper用プロンプト:</label>
+                    <textarea id="whisperPrompt" placeholder="Whisper用プロンプトを入力"></textarea>
+                    <label for="gpt4Prompt">GPT-4o用プロンプト:</label>
+                    <textarea id="gpt4Prompt" placeholder="GPT-4o用プロンプトを入力"></textarea>
+                </div>
             </div>
         </div>
         <div class="bottom-section">
-            <div id="transcription-container">
-                <div id="transcription"></div>
-                <div id="transcription-buttons">
-                    <button class="small-button" id="saveToFile" disabled>保存</button>
-                    <button class="small-button" id="copyToClipboard" disabled>コピー</button>
-                    <button class="small-button" id="downloadAudio" disabled>音声ダウンロード</button>
-                </div>
-            </div>
-            <div id="prompt-box">
-                <label for="prompt">プロンプト:</label>
-                <textarea id="prompt" placeholder="プロンプトを入力"></textarea>
-            </div>
+            <h2>履歴</h2>
+            <div id="history"></div>
         </div>
     </div>
     <footer>
@@ -362,8 +416,6 @@
             <a href="https://ko-fi.com/rabbuttz" target="_blank" rel="noopener noreferrer">☕Ko-fi</a>
             <a href="privacy-policy.html" target="_blank" rel="noopener noreferrer">プライバシーポリシー</a>
             <a href="terms-of-service.html" target="_blank" rel="noopener noreferrer">利用規約</a>
-        </div>
-        <!-- フッター内に以下の行を追加 -->
         </div>
     </footer>
     <script src="script.js"></script>
