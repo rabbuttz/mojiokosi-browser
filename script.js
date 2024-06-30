@@ -26,6 +26,11 @@ const historyDiv = document.getElementById('history');
 
 let trimmedAudioBlob = null; // トリミング後の音声データを保存する変数
 let fullAudioBlob = null; // 録音されたフル音声データを保存する変数
+let isRecording = false; // グローバル変数として録音状態を追跡
+
+window.addEventListener('load', () => {
+    switchFavicon('default');
+  });
 
 // APIキーの保存
 saveApiKeyButton.addEventListener('click', () => {
@@ -129,87 +134,89 @@ function updateRecordingTime() {
     document.title = `録音中 ${timeString}`;
 }
 
-async function startRecording() {
+function startRecording() {
+    if (isRecording) {
+        console.log('既に録音中です');
+        return;
+    }
+
     audioChunks = [];
     recordingStartTime = new Date();
     updateRecordingTime();
     recordingInterval = setInterval(updateRecordingTime, 1000);
 
-    try {
-        console.log("録音開始処理を開始します...");
-        statusDiv.textContent = "録音の準備中...";
+    navigator.mediaDevices.getDisplayMedia({ video: true, audio: true })
+        .then(desktopStream => {
+            return navigator.mediaDevices.getUserMedia({ audio: true, video: false })
+                .then(micStream => {
+                    audioContext = new AudioContext();
+                    analyser = audioContext.createAnalyser();
+                    const desktopSource = audioContext.createMediaStreamSource(desktopStream);
+                    const micSource = audioContext.createMediaStreamSource(micStream);
+                    const destination = audioContext.createMediaStreamDestination();
 
-        console.log("デスクトップ音声のキャプチャを開始します...");
-        const desktopStream = await navigator.mediaDevices.getDisplayMedia({
-            video: true,
-            audio: true
+                    desktopSource.connect(analyser);
+                    micSource.connect(analyser);
+                    analyser.connect(destination);
+
+                    drawVisualizer();
+
+                    mediaRecorder = new MediaRecorder(destination.stream);
+
+                    mediaRecorder.ondataavailable = event => {
+                        audioChunks.push(event.data);
+                    };
+
+                    mediaRecorder.onstop = () => {
+                        desktopStream.getTracks().forEach(track => track.stop());
+                        micStream.getTracks().forEach(track => track.stop());
+                        clearInterval(recordingInterval);
+                        document.title = '音声録音・文字起こしアプリ';
+                        fullAudioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                        downloadAudioButton.disabled = false;
+                    };
+
+                    mediaRecorder.start(1000);
+                    isRecording = true;
+                    isPaused = false;
+                    addBeforeUnloadListener();
+                    switchFavicon('recording');
+                    startRecordingButton.disabled = true;
+                    toggleRecordingButton.disabled = false;
+                    stopRecordingButton.disabled = false;
+                    sendToApiButton.disabled = true;
+                    statusDiv.textContent = '録音中...';
+                });
+        })
+        .catch(error => {
+            console.error('録音の開始に失敗しました:', error);
+            statusDiv.textContent = `録音の開始に失敗しました: ${error.message}`;
+            resetRecordingState();
         });
-        console.log("デスクトップ音声のキャプチャに成功しました。");
+}
 
-        console.log("マイク音声のキャプチャを開始します...");
-        const micStream = await navigator.mediaDevices.getUserMedia({
-            audio: true,
-            video: false
-        });
-        console.log("マイク音声のキャプチャに成功しました。");
-
-        console.log("オーディオコンテキストを設定中...");
-        audioContext = new AudioContext();
-        analyser = audioContext.createAnalyser();
-        const desktopSource = audioContext.createMediaStreamSource(desktopStream);
-        const micSource = audioContext.createMediaStreamSource(micStream);
-        const destination = audioContext.createMediaStreamDestination();
-
-        desktopSource.connect(analyser);
-        micSource.connect(analyser);
-        analyser.connect(destination);
-
-        console.log("ビジュアライザーの描画を開始します...");
-        drawVisualizer();
-
-        console.log("MediaRecorderを設定中...");
-        mediaRecorder = new MediaRecorder(destination.stream);
-
-        mediaRecorder.ondataavailable = event => {
-            console.log("データが利用可能です:", event.data);
-            audioChunks.push(event.data);
-        };
-
-        mediaRecorder.onstop = () => {
-            console.log("録音が停止しました");
-            desktopStream.getTracks().forEach(track => track.stop());
-            micStream.getTracks().forEach(track => track.stop());
-            clearInterval(recordingInterval);
-            document.title = '音声録音・文字起こしアプリ';
-            fullAudioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-            downloadAudioButton.disabled = false; // 録音停止後に音声ダウンロードボタンを有効にする
-        };
-
-        console.log("録音を開始します...");
-        mediaRecorder.start(1000); // 1秒ごとにデータを取得
-        startRecordingButton.disabled = true;
-        toggleRecordingButton.disabled = false;
-        stopRecordingButton.disabled = false;
-        sendToApiButton.disabled = true;
-        statusDiv.textContent = '録音中...';
-        console.log("録音が正常に開始されました。");
-    } catch (error) {
-        console.error('録音の開始に失敗しました:', error);
-        statusDiv.textContent = `録音の開始に失敗しました: ${error.message}`;
-        startRecordingButton.disabled = false;
-        toggleRecordingButton.disabled = true;
-        stopRecordingButton.disabled = true;
-        sendToApiButton.disabled = true;
-    }
+function resetRecordingState() {
+    isRecording = false;
+    isPaused = false;
+    removeBeforeUnloadListener();
+    switchFavicon('default');
+    clearInterval(recordingInterval);
+    document.title = '音声録音・文字起こしアプリ';
 }
 
 function toggleRecording() {
+    if (!isRecording) {
+        console.log('録音が開始されていません');
+        return;
+    }
+
     if (mediaRecorder.state === 'recording') {
         mediaRecorder.pause();
         isPaused = true;
         toggleRecordingButton.textContent = '再開';
         statusDiv.textContent = '録音一時停止中...';
         clearInterval(recordingInterval);
+        switchFavicon('paused');
     } else if (mediaRecorder.state === 'paused') {
         mediaRecorder.resume();
         isPaused = false;
@@ -217,17 +224,46 @@ function toggleRecording() {
         statusDiv.textContent = '録音再開中...';
         recordingStartTime = new Date(new Date() - (new Date() - recordingStartTime));
         recordingInterval = setInterval(updateRecordingTime, 1000);
+        switchFavicon('recording');
     }
 }
 
-function stopRecording() {
+
+
+  function stopRecording() {
+    if (!isRecording) {
+        console.log('録音が開始されていません');
+        return;
+    }
+
     if (mediaRecorder && mediaRecorder.state !== 'inactive') {
         mediaRecorder.stop();
-        startRecordingButton.disabled = false;
-        toggleRecordingButton.disabled = true;
-        stopRecordingButton.disabled = true;
-        sendToApiButton.disabled = false;
-        statusDiv.textContent = '録音が完了しました。「文字起こし開始」ボタンを押して文字起こしを開始できます。';
+    }
+
+    resetRecordingState();
+
+    startRecordingButton.disabled = false;
+    toggleRecordingButton.disabled = true;
+    stopRecordingButton.disabled = true;
+    sendToApiButton.disabled = false;
+    statusDiv.textContent = '録音が完了しました。「文字起こし開始」ボタンを押して文字起こしを開始できます。';
+}
+
+function addBeforeUnloadListener() {
+    window.addEventListener('beforeunload', handleBeforeUnload);
+}
+
+// beforeunload リスナーを削除する関数
+function removeBeforeUnloadListener() {
+    window.removeEventListener('beforeunload', handleBeforeUnload);
+}
+
+// beforeunload イベントハンドラ
+function handleBeforeUnload(event) {
+    if (isRecording) {
+        event.preventDefault(); // 標準の動作をキャンセル
+        event.returnValue = ''; // Chrome では、この設定が必要
+        return '録音中です。本当にページを離れますか？'; // 一部のブラウザでは、このメッセージが表示されます
     }
 }
 
@@ -578,3 +614,17 @@ function formatTimestamp(isoString) {
         minute: '2-digit' 
     });
 }
+
+function switchFavicon(state) {
+    const favicon = document.getElementById('favicon');
+    switch(state) {
+      case 'recording':
+        favicon.href = 'img/favicon-recording.svg';
+        break;
+      case 'paused':
+        favicon.href = 'img/favicon-paused.svg';
+        break;
+      default:
+        favicon.href = 'img/favicon-default.svg';
+    }
+  }
