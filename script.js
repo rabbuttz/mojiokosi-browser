@@ -34,11 +34,33 @@ let fullAudioBlob = null;
 let isRecording = false;
 let historyData = [];
 
+
 window.addEventListener('load', () => {
     switchFavicon('default');
     loadHistory();
     loadPrompts();
+    loadApiKey();
 });
+
+function loadApiKey() {
+    const savedApiKey = localStorage.getItem('openAiApiKey');
+    if (savedApiKey) {
+        apiKeyInput.value = savedApiKey;
+        resetApiKeyButton.disabled = false;
+    }
+}
+
+function saveToFile() {
+    const text = transcriptionDiv.textContent;
+    const blob = new Blob([text], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'transcription.txt';
+    a.click();
+    URL.revokeObjectURL(url);
+}
+
 
 resetApiKeyButton.addEventListener('click', () => {
     if (confirm('APIキーをリセットしてもよろしいですか？')) {
@@ -77,7 +99,32 @@ startRecordingButton.addEventListener('click', startRecording);
 toggleRecordingButton.addEventListener('click', toggleRecording);
 stopRecordingButton.addEventListener('click', stopRecording);
 sendToApiButton.addEventListener('click', sendToApi);
+saveToFileButton.addEventListener('click', saveToFile);
 generateMinutesButton.addEventListener('click', generateMinutes);
+copyToClipboardButton.addEventListener('click', copyToClipboard);
+downloadAudioButton.addEventListener('click', downloadAudio);
+
+
+function copyToClipboard() {
+    const text = transcriptionDiv.textContent;
+    navigator.clipboard.writeText(text).then(() => {
+        statusDiv.textContent = '文字起こしがクリップボードにコピーされました';
+    }).catch(err => {
+        console.error('クリップボードへのコピーに失敗しました:', err);
+        statusDiv.textContent = 'クリップボードへのコピーに失敗しました';
+    });
+}
+
+function downloadAudio() {
+    if (fullAudioBlob) {
+        const url = URL.createObjectURL(fullAudioBlob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'full_audio.webm';
+        a.click();
+        URL.revokeObjectURL(url);
+    }
+}
 
 function loadPrompts() {
     const savedWhisperPrompt = localStorage.getItem('whisperPrompt');
