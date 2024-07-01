@@ -2,7 +2,7 @@
 ChatGPTとClaudeを駆使して作成したブラウザで動く録音/文字起こしサイトです。
 こちらからアクセスできます。→https://rabbuttz.github.io/mojiokosi-browser/
 
-文字起こしにはWhisperAPIを使用するため、ご自身でAPIキーを発行する必要があります。
+文字起こしにはWhisperAPIとGPT-4oを使用するため、ご自身でAPIキーを発行する必要があります。
 以下のサイトなどでAPIキーの取得方法が説明されているため、参照いただくとよいかと思います。
 https://www.goatman.co.jp/media/chatgpt/openai-api-key/
 
