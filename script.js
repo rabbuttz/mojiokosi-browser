@@ -40,6 +40,11 @@ window.addEventListener('load', () => {
     loadHistory();
     loadPrompts();
     loadApiKey();
+    if(localStorage.getItem('gpt4Prompt') == null) {
+        gpt4PromptInput.value = 'これはとある会議の文字起こしです。これをもとに高品質な議事録を生成してください。ただし、出力するものは議事録だけにしてください。';
+    } else {
+        gpt4PromptInput.value = localStorage.getItem('gpt4Prompt');
+    }
 });
 
 function loadApiKey() {
